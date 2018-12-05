@@ -5,9 +5,18 @@ import java.util.*;
 
 public class Main {
 
+    private static String pre = "jdbc:sqlite:";
+    private static int highestWurmCreatureTemplateId = 116;
     private static Set<String> templatesToDelete = new HashSet<>();
 
     public static void main(String[] args) {
+        if (args.length > 0 && args[0].startsWith("-")) {
+            if (args[0].equals("-remove-modded-dens")) {
+                deleteHighIdDens();
+                return;
+            }
+        }
+
         String argString = String.join(" ", args);
         for (String arg : argString.split(",")) {
             templatesToDelete.add(arg.trim().toLowerCase());
@@ -17,7 +26,6 @@ public class Main {
         Connection items = null;
         Connection players = null;
         try {
-            String pre = "jdbc:sqlite:";
             creatures = DriverManager.getConnection(pre + "wurmcreatures.db");
             items = DriverManager.getConnection(pre + "wurmitems.db");
             players = DriverManager.getConnection(pre + "wurmplayers.db");
@@ -104,5 +112,30 @@ public class Main {
         creatures.commit();
         items.commit();
         players.commit();
+    }
+
+    private static void deleteHighIdDens() {
+        try {
+            Connection zones = DriverManager.getConnection(pre + "wurmzones.db");
+            PreparedStatement dens = zones.prepareStatement("SELECT TEMPLATEID FROM DENS");
+            PreparedStatement remove = zones.prepareStatement("DELETE FROM DENS WHERE TEMPLATEID=?");
+            ResultSet rs = dens.executeQuery();
+
+            System.out.println("Removing modded dens.");
+            zones.setAutoCommit(false);
+            while (rs.next()) {
+                int id = rs.getInt(1);
+                if (id > highestWurmCreatureTemplateId) {
+                    remove.setInt(1, id);
+                    remove.executeUpdate();
+                }
+            }
+
+            System.out.println("Committing to database.");
+            zones.commit();
+        } catch (SQLException e) {
+            System.out.println("Error when removing dens.");
+            e.printStackTrace();
+        }
     }
 }
